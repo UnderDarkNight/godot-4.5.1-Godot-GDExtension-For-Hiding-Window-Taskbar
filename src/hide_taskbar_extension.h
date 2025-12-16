@@ -22,14 +22,25 @@ public:
     HideTaskBarInWindowsSystem();
     ~HideTaskBarInWindowsSystem();
 
-    // 公共方法
+    // 公共方法 - 通过Window对象操作
     bool hide(Window* window);
     bool show(Window* window);
     bool is_visible(Window* window);
+    
+    // 主窗口相关方法
+    bool hide_main_window();
+    bool show_main_window();
+    bool is_main_window_visible();
 
+    // 通过Window对象直接操作的方法
+    bool hide_window_by_object(Window* window);
+    bool show_window_by_object(Window* window);
+    bool is_window_visible_by_object(Window* window);
+    
 private:
 #ifdef _WIN32
     HWND get_window_handle(Window* window);
+    HWND get_main_window_handle();
 #endif
 };
 

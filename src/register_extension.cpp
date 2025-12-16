@@ -11,7 +11,7 @@ void initialize_hide_taskbar_module(ModuleInitializationLevel p_level) {
         return;
     }
 
-    // 恢复全局类注册
+    // 注册全局类
     ClassDB::register_class<HideTaskBarInWindowsSystem>();
 }
 
