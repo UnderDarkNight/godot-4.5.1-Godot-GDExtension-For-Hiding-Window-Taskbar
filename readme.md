@@ -1,15 +1,22 @@
 
 
+
+```text
+
 本工程文件目录结构：
-    root
-        |- src
-            |- hide_taskbar_extension.cpp
-            |- hide_taskbar_extension.h
-            |- register_extension.cpp
-        |- include
-        |- godot-cpp
-        |- .gitignore
-        |- SConstruct
+
+project-root/
+|-- .gitignore
+|-- README.md
+|-- include
+|-- godot-cpp
+|-- src/
+|    |-- hide_taskbar_extension.cpp
+|    |-- hide_taskbar_extension.h
+|    |-- hide_taskbar_extension.h
+|-- SConstruct
+
+
 
 
 只要这些就足够了：
