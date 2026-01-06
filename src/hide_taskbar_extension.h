@@ -32,10 +32,16 @@ public:
     bool show_main_window();
     bool is_main_window_visible();
 
-    // 通过Window对象直接操作的方法
-    bool hide_window_by_object(Window* window);
-    bool show_window_by_object(Window* window);
-    bool is_window_visible_by_object(Window* window);
+    bool set_clickable(Window* window, bool clickable);
+    bool is_clickable(Window* window);
+
+    // 在类的公共方法部分添加
+    int64_t get_window_system_handle(Window* window);
+    
+    // // 通过Window对象直接操作的方法
+    // bool hide_window_by_object(Window* window);
+    // bool show_window_by_object(Window* window);
+    // bool is_window_visible_by_object(Window* window);
     
 private:
 #ifdef _WIN32

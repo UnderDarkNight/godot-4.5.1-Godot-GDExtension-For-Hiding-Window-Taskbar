@@ -14,11 +14,17 @@ void HideTaskBarInWindowsSystem::_bind_methods() {
     ClassDB::bind_method(D_METHOD("hide_main_window"), &HideTaskBarInWindowsSystem::hide_main_window);
     ClassDB::bind_method(D_METHOD("show_main_window"), &HideTaskBarInWindowsSystem::show_main_window);
     ClassDB::bind_method(D_METHOD("is_main_window_visible"), &HideTaskBarInWindowsSystem::is_main_window_visible);
+
+    // 窗口是否可点击相关方法
+    ClassDB::bind_method(D_METHOD("set_clickable", "window", "clickable"), &HideTaskBarInWindowsSystem::set_clickable);
+    ClassDB::bind_method(D_METHOD("is_clickable", "window"), &HideTaskBarInWindowsSystem::is_clickable);
     
-    // 通过Window对象直接操作的方法
-    ClassDB::bind_method(D_METHOD("hide_window_by_object", "window"), &HideTaskBarInWindowsSystem::hide_window_by_object);
-    ClassDB::bind_method(D_METHOD("show_window_by_object", "window"), &HideTaskBarInWindowsSystem::show_window_by_object);
-    ClassDB::bind_method(D_METHOD("is_window_visible_by_object", "window"), &HideTaskBarInWindowsSystem::is_window_visible_by_object);
+    // 获取系统窗口句柄
+    ClassDB::bind_method(D_METHOD("get_window_system_handle", "window"), &HideTaskBarInWindowsSystem::get_window_system_handle);
+    // // 通过Window对象直接操作的方法
+    // ClassDB::bind_method(D_METHOD("hide_window_by_object", "window"), &HideTaskBarInWindowsSystem::hide_window_by_object);
+    // ClassDB::bind_method(D_METHOD("show_window_by_object", "window"), &HideTaskBarInWindowsSystem::show_window_by_object);
+    // ClassDB::bind_method(D_METHOD("is_window_visible_by_object", "window"), &HideTaskBarInWindowsSystem::is_window_visible_by_object);
 }
 
 HideTaskBarInWindowsSystem::HideTaskBarInWindowsSystem() {
@@ -240,95 +246,177 @@ bool HideTaskBarInWindowsSystem::is_main_window_visible() {
     return false;
 }
 
-// 通过Window对象直接操作的方法
-bool HideTaskBarInWindowsSystem::hide_window_by_object(Window* window) {
-    if (!window) {
-        UtilityFunctions::print("Window object is null");
-        return false;
-    }
-    
-    // 通过DisplayServer直接获取窗口句柄
-    uint32_t window_id = window->get_window_id();
-    int64_t handle = DisplayServer::get_singleton()->window_get_native_handle(
-        DisplayServer::HandleType::WINDOW_HANDLE, window_id);
-    HWND hwnd = (HWND)handle;
+bool HideTaskBarInWindowsSystem::set_clickable(Window* window, bool clickable) {
+#ifdef _WIN32
+    HWND hwnd = get_window_handle(window);
     
     if (hwnd && IsWindow(hwnd)) {
         LONG_PTR exStyle = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
         if (exStyle != 0) {
-            exStyle &= ~WS_EX_APPWINDOW;
-            exStyle |= WS_EX_TOOLWINDOW;
-            SetWindowLongPtr(hwnd, GWL_EXSTYLE, exStyle);
-            
-            ShowWindow(hwnd, SW_HIDE);
-            ShowWindow(hwnd, SW_SHOW);
-            
-            UtilityFunctions::print("Successfully hidden window (ID: ", window_id, ") from taskbar");
-            return true;
+            if (clickable) {
+                // 移除穿透样式，使窗口可点击
+                exStyle &= ~WS_EX_LAYERED;
+                exStyle &= ~WS_EX_TRANSPARENT;
+                SetWindowLongPtr(hwnd, GWL_EXSTYLE, exStyle);
+                
+                // 恢复窗口的可见性
+                ShowWindow(hwnd, SW_SHOW);
+                
+                UtilityFunctions::print("Window made clickable");
+                return true;
+            } else {
+                // 设置窗口为穿透模式
+                exStyle |= WS_EX_LAYERED | WS_EX_TRANSPARENT;
+                SetWindowLongPtr(hwnd, GWL_EXSTYLE, exStyle);
+                
+                // 设置透明度为完全不透明但保持穿透
+                SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
+                
+                UtilityFunctions::print("Window made click-through");
+                return true;
+            }
         }
     }
     
-    UtilityFunctions::print("Failed to hide window (ID: ", window_id, ") from taskbar");
+    UtilityFunctions::print("Failed to set window click-through property");
     return false;
+#else
+    UtilityFunctions::print("Current platform does not support click-through functionality");
+    return false;
+#endif
 }
 
-bool HideTaskBarInWindowsSystem::show_window_by_object(Window* window) {
-    if (!window) {
-        UtilityFunctions::print("Window object is null");
-        return false;
-    }
-    
-    // 通过DisplayServer直接获取窗口句柄
-    uint32_t window_id = window->get_window_id();
-    int64_t handle = DisplayServer::get_singleton()->window_get_native_handle(
-        DisplayServer::HandleType::WINDOW_HANDLE, window_id);
-    HWND hwnd = (HWND)handle;
+bool HideTaskBarInWindowsSystem::is_clickable(Window* window) {
+#ifdef _WIN32
+    HWND hwnd = get_window_handle(window);
     
     if (hwnd && IsWindow(hwnd)) {
         LONG_PTR exStyle = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
-        if (exStyle != 0) {
-            exStyle |= WS_EX_APPWINDOW;
-            exStyle &= ~WS_EX_TOOLWINDOW;
-            SetWindowLongPtr(hwnd, GWL_EXSTYLE, exStyle);
-            
-            ShowWindow(hwnd, SW_HIDE);
-            ShowWindow(hwnd, SW_SHOW);
-            
-            UtilityFunctions::print("Successfully shown window (ID: ", window_id, ") on taskbar");
-            return true;
-        }
+        
+        // 检查是否设置了穿透样式
+        bool isTransparent = (exStyle & WS_EX_TRANSPARENT) != 0;
+        bool isLayered = (exStyle & WS_EX_LAYERED) != 0;
+        
+        bool clickable = !(isTransparent && isLayered);
+        
+        UtilityFunctions::print("Window clickability: ", clickable ? "Clickable" : "Click-through");
+        return clickable;
     }
     
-    UtilityFunctions::print("Failed to show window (ID: ", window_id, ") on taskbar");
-    return false;
+    UtilityFunctions::print("Unable to determine window clickability");
+    return true; // 默认认为是可点击的
+#else
+    UtilityFunctions::print("Current platform does not support checking click-through status");
+    return true;
+#endif
 }
 
-bool HideTaskBarInWindowsSystem::is_window_visible_by_object(Window* window) {
-    if (!window) {
-        UtilityFunctions::print("Window object is null");
-        return false;
+int64_t HideTaskBarInWindowsSystem::get_window_system_handle(Window* window) {
+#ifdef _WIN32
+    HWND hwnd = get_window_handle(window);
+    
+    if (hwnd) {
+        UtilityFunctions::print("Retrieved system handle: ", (uint64_t)hwnd);
+        return (int64_t)hwnd;
+    } else {
+        UtilityFunctions::print("Failed to retrieve system handle");
+        return 0; // 返回0表示无效句柄
     }
-    
-    // 通过DisplayServer直接获取窗口句柄
-    uint32_t window_id = window->get_window_id();
-    int64_t handle = DisplayServer::get_singleton()->window_get_native_handle(
-        DisplayServer::HandleType::WINDOW_HANDLE, window_id);
-    HWND hwnd = (HWND)handle;
-    
-    if (hwnd && IsWindow(hwnd)) {
-        LONG_PTR exStyle = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
-        bool hasAppWindow = (exStyle & WS_EX_APPWINDOW) != 0;
-        bool hasToolWindow = (exStyle & WS_EX_TOOLWINDOW) != 0;
-        
-        bool inTaskbar = hasAppWindow && !hasToolWindow;
-        
-        UtilityFunctions::print("Window (ID: ", window_id, ") visibility on taskbar: ", inTaskbar ? "Yes" : "No");
-        return inTaskbar;
-    }
-    
-    UtilityFunctions::print("Unable to determine window (ID: ", window_id, ") visibility on taskbar");
-    return false;
+#else
+    UtilityFunctions::print("Current platform does not support retrieving system handle");
+    return 0;
+#endif
 }
+
+// // 通过Window对象直接操作的方法
+// bool HideTaskBarInWindowsSystem::hide_window_by_object(Window* window) {
+//     if (!window) {
+//         UtilityFunctions::print("Window object is null");
+//         return false;
+//     }
+    
+//     // 通过DisplayServer直接获取窗口句柄
+//     uint32_t window_id = window->get_window_id();
+//     int64_t handle = DisplayServer::get_singleton()->window_get_native_handle(
+//         DisplayServer::HandleType::WINDOW_HANDLE, window_id);
+//     HWND hwnd = (HWND)handle;
+    
+//     if (hwnd && IsWindow(hwnd)) {
+//         LONG_PTR exStyle = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
+//         if (exStyle != 0) {
+//             exStyle &= ~WS_EX_APPWINDOW;
+//             exStyle |= WS_EX_TOOLWINDOW;
+//             SetWindowLongPtr(hwnd, GWL_EXSTYLE, exStyle);
+            
+//             ShowWindow(hwnd, SW_HIDE);
+//             ShowWindow(hwnd, SW_SHOW);
+            
+//             UtilityFunctions::print("Successfully hidden window (ID: ", window_id, ") from taskbar");
+//             return true;
+//         }
+//     }
+    
+//     UtilityFunctions::print("Failed to hide window (ID: ", window_id, ") from taskbar");
+//     return false;
+// }
+
+// bool HideTaskBarInWindowsSystem::show_window_by_object(Window* window) {
+//     if (!window) {
+//         UtilityFunctions::print("Window object is null");
+//         return false;
+//     }
+    
+//     // 通过DisplayServer直接获取窗口句柄
+//     uint32_t window_id = window->get_window_id();
+//     int64_t handle = DisplayServer::get_singleton()->window_get_native_handle(
+//         DisplayServer::HandleType::WINDOW_HANDLE, window_id);
+//     HWND hwnd = (HWND)handle;
+    
+//     if (hwnd && IsWindow(hwnd)) {
+//         LONG_PTR exStyle = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
+//         if (exStyle != 0) {
+//             exStyle |= WS_EX_APPWINDOW;
+//             exStyle &= ~WS_EX_TOOLWINDOW;
+//             SetWindowLongPtr(hwnd, GWL_EXSTYLE, exStyle);
+            
+//             ShowWindow(hwnd, SW_HIDE);
+//             ShowWindow(hwnd, SW_SHOW);
+            
+//             UtilityFunctions::print("Successfully shown window (ID: ", window_id, ") on taskbar");
+//             return true;
+//         }
+//     }
+    
+//     UtilityFunctions::print("Failed to show window (ID: ", window_id, ") on taskbar");
+//     return false;
+// }
+
+// bool HideTaskBarInWindowsSystem::is_window_visible_by_object(Window* window) {
+//     if (!window) {
+//         UtilityFunctions::print("Window object is null");
+//         return false;
+//     }
+    
+//     // 通过DisplayServer直接获取窗口句柄
+//     uint32_t window_id = window->get_window_id();
+//     int64_t handle = DisplayServer::get_singleton()->window_get_native_handle(
+//         DisplayServer::HandleType::WINDOW_HANDLE, window_id);
+//     HWND hwnd = (HWND)handle;
+    
+//     if (hwnd && IsWindow(hwnd)) {
+//         LONG_PTR exStyle = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
+//         bool hasAppWindow = (exStyle & WS_EX_APPWINDOW) != 0;
+//         bool hasToolWindow = (exStyle & WS_EX_TOOLWINDOW) != 0;
+        
+//         bool inTaskbar = hasAppWindow && !hasToolWindow;
+        
+//         UtilityFunctions::print("Window (ID: ", window_id, ") visibility on taskbar: ", inTaskbar ? "Yes" : "No");
+//         return inTaskbar;
+//     }
+    
+//     UtilityFunctions::print("Unable to determine window (ID: ", window_id, ") visibility on taskbar");
+//     return false;
+// }
 #else
 // 非Windows平台的空实现
 bool HideTaskBarInWindowsSystem::hide(Window* window) {

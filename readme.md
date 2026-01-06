@@ -13,7 +13,7 @@ project-root/
 |-- src/
 |    |-- hide_taskbar_extension.cpp
 |    |-- hide_taskbar_extension.h
-|    |-- hide_taskbar_extension.h
+|    |-- register_extension.cpp
 |-- SConstruct
 
 
